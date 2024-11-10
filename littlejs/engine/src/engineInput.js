@@ -199,6 +199,10 @@ function inputInit()
     // mouse event handlers
     onmousedown   = (e)=>
     {
+        // fix stalled audio requiring user interaction
+        if (soundEnable && !headlessMode && audioContext && audioContext.state != 'running')
+            audioContext.resume();
+        
         isUsingGamepad = false; 
         inputData[0][e.button] = 3; 
         mousePosScreen = mouseToScreen(e); 
@@ -210,7 +214,7 @@ function inputInit()
     oncontextmenu = (e)=> false; // prevent right click menu
 
     // init touch input
-    if (isTouchDevice && touchInputEnable && !headlessMode)
+    if (isTouchDevice && touchInputEnable)
         touchInputInit();
 }
 
@@ -367,8 +371,8 @@ function touchInputInit()
     function handleTouchDefault(e)
     {
         // fix stalled audio requiring user interaction
-        if (soundEnable && audioContext && audioContext.state != 'running')
-            zzfx(0);
+        if (soundEnable && !headlessMode && audioContext && audioContext.state != 'running')
+            audioContext.resume();
 
         // check if touching and pass to mouse events
         const touching = e.touches.length;

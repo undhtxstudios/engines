@@ -190,8 +190,23 @@ function debugSaveDataURL(dataURL, filename)
     downloadLink.click();
 }
 
+/** Show error as full page of red text
+ *  @memberof Debug */
+function debugShowErrors()
+{
+    onunhandledrejection = (event)=>showError(event.reason);
+    onerror = (event, source, lineno, colno)=>
+        showError(`${event}\n${source}\nLn ${lineno}, Col ${colno}`);
+
+    const showError = (message)=>
+    {
+        document.body.style.backgroundColor = '#111';
+        document.body.innerHTML = `<pre style=color:#f00;font-size:50px>` + message;
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
-// Engine debug function (called automatically)
+// Engine debug functions (called automatically)
 
 function debugInit()
 {
@@ -322,7 +337,7 @@ function debugRender()
             const pos = worldToScreen(p.pos);
             overlayContext.translate(pos.x|0, pos.y|0);
             overlayContext.rotate(p.angle);
-            overlayContext.scale(1, -1);
+            overlayContext.scale(1, p.text ? 1 : -1);
             overlayContext.fillStyle = overlayContext.strokeStyle = p.color;
 
             if (p.text != undefined)

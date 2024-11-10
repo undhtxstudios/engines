@@ -3,456 +3,39 @@
 'use strict';
 
 /** 
- * LittleJS Debug System
- * - Press Esc to show debug overlay with mouse pick
- * - Number keys toggle debug functions
- * - +/- apply time scale
- * - Debug primitive rendering
- * - Save a 2d canvas as a png image
- * @namespace Debug
+ * LittleJS - Release Mode
+ * - This file is used for release builds in place of engineDebug.js
+ * - Debug functionality is disabled to reduce size and increase performance
  */
 
 
 
-/** True if debug is enabled
- *  @type {Boolean}
- *  @default
- *  @memberof Debug */
-const debug = true;
+let showWatermark = 0;
+let debugKey = '';
+const debug = 0;
+const debugOverlay = 0;
+const debugPhysics = 0;
+const debugParticles = 0;
+const debugRaycast = 0;
+const debugGamepads = 0;
+const debugMedals = 0;
 
-/** True if asserts are enaled
- *  @type {Boolean}
- *  @default
- *  @memberof Debug */
-const enableAsserts = true;
-
-/** Size to render debug points by default
- *  @type {Number}
- *  @default
- *  @memberof Debug */
-const debugPointSize = .5;
-
-/** True if watermark with FPS should be shown, false in release builds
- *  @type {Boolean}
- *  @default
- *  @memberof Debug */
-let showWatermark = true;
-
-/** Key code used to toggle debug mode, Esc by default
- *  @type {String}
- *  @default
- *  @memberof Debug */
-let debugKey = 'Escape';
-
-/** True if the debug overlay is active, always false in release builds
- *  @type {Boolean}
- *  @default
- *  @memberof Debug */
-let debugOverlay = false;
-
-// Engine internal variables not exposed to documentation
-let debugPrimitives = [], debugPhysics = false, debugRaycast = false, debugParticles = false, debugGamepads = false, debugMedals = false, debugTakeScreenshot, downloadLink;
-
-///////////////////////////////////////////////////////////////////////////////
-// Debug helper functions
-
-/** Asserts if the expression is false, does not do anything in release builds
- *  @param {Boolean} assert
- *  @param {Object} [output]
- *  @memberof Debug */
-function ASSERT(assert, output) 
-{
-    if (enableAsserts)
-        output ? console.assert(assert, output) : console.assert(assert);
-}
-
-/** Draw a debug rectangle in world space
- *  @param {Vector2} pos
- *  @param {Vector2} [size=Vector2()]
- *  @param {String}  [color]
- *  @param {Number}  [time]
- *  @param {Number}  [angle]
- *  @param {Boolean} [fill]
- *  @memberof Debug */
-function debugRect(pos, size=vec2(), color='#fff', time=0, angle=0, fill=false)
-{
-    ASSERT(typeof color == 'string', 'pass in css color strings'); 
-    debugPrimitives.push({pos, size:vec2(size), color, time:new Timer(time), angle, fill});
-}
-
-/** Draw a debug poly in world space
- *  @param {Vector2} pos
- *  @param {Array}   points
- *  @param {String}  [color]
- *  @param {Number}  [time]
- *  @param {Number}  [angle]
- *  @param {Boolean} [fill]
- *  @memberof Debug */
-function debugPoly(pos, points, color='#fff', time=0, angle=0, fill=false)
-{
-    ASSERT(typeof color == 'string', 'pass in css color strings'); 
-    debugPrimitives.push({pos, points, color, time:new Timer(time), angle, fill});
-}
-
-/** Draw a debug circle in world space
- *  @param {Vector2} pos
- *  @param {Number}  [radius]
- *  @param {String}  [color]
- *  @param {Number}  [time]
- *  @param {Boolean} [fill]
- *  @memberof Debug */
-function debugCircle(pos, radius=0, color='#fff', time=0, fill=false)
-{
-    ASSERT(typeof color == 'string', 'pass in css color strings'); 
-    debugPrimitives.push({pos, size:radius, color, time:new Timer(time), angle:0, fill});
-}
-
-/** Draw a debug point in world space
- *  @param {Vector2} pos
- *  @param {String}  [color]
- *  @param {Number}  [time]
- *  @param {Number}  [angle]
- *  @memberof Debug */
-function debugPoint(pos, color, time, angle)
-{
-    ASSERT(typeof color == 'string', 'pass in css color strings'); 
-    debugRect(pos, undefined, color, time, angle);
-}
-
-/** Draw a debug line in world space
- *  @param {Vector2} posA
- *  @param {Vector2} posB
- *  @param {String}  [color]
- *  @param {Number}  [thickness]
- *  @param {Number}  [time]
- *  @memberof Debug */
-function debugLine(posA, posB, color, thickness=.1, time)
-{
-    ASSERT(typeof color == 'string', 'pass in css color strings'); 
-    const halfDelta = vec2((posB.x - posA.x)/2, (posB.y - posA.y)/2);
-    const size = vec2(thickness, halfDelta.length()*2);
-    debugRect(posA.add(halfDelta), size, color, time, halfDelta.angle(), true);
-}
-
-/** Draw a debug combined axis aligned bounding box in world space
- *  @param {Vector2} pA - position A
- *  @param {Vector2} sA - size A
- *  @param {Vector2} pB - position B
- *  @param {Vector2} sB - size B
- *  @param {String}  [color]
- *  @memberof Debug */
-function debugOverlap(pA, sA, pB, sB, color)
-{
-    const minPos = vec2(min(pA.x - sA.x/2, pB.x - sB.x/2), min(pA.y - sA.y/2, pB.y - sB.y/2));
-    const maxPos = vec2(max(pA.x + sA.x/2, pB.x + sB.x/2), max(pA.y + sA.y/2, pB.y + sB.y/2));
-    debugRect(minPos.lerp(maxPos,.5), maxPos.subtract(minPos), color);
-}
-
-/** Draw a debug axis aligned bounding box in world space
- *  @param {String}  text
- *  @param {Vector2} pos
- *  @param {Number}  [size]
- *  @param {String}  [color]
- *  @param {Number}  [time]
- *  @param {Number}  [angle]
- *  @param {String}  [font]
- *  @memberof Debug */
-function debugText(text, pos, size=1, color='#fff', time=0, angle=0, font='monospace')
-{
-    ASSERT(typeof color == 'string', 'pass in css color strings'); 
-    debugPrimitives.push({text, pos, size, color, time:new Timer(time), angle, font});
-}
-
-/** Clear all debug primitives in the list
- *  @memberof Debug */
-function debugClear() { debugPrimitives = []; }
-
-/** Save a canvas to disk 
- *  @param {HTMLCanvasElement} canvas
- *  @param {String}            [filename]
- *  @param {String}            [type]
- *  @memberof Debug */
-function debugSaveCanvas(canvas, filename='screenshot', type='image/png')
-{ debugSaveDataURL(canvas.toDataURL(type), filename); }
-
-/** Save a text file to disk 
- *  @param {String}     text
- *  @param {String}     [filename]
- *  @param {String}     [type]
- *  @memberof Debug */
-function debugSaveText(text, filename='text', type='text/plain')
-{ debugSaveDataURL(URL.createObjectURL(new Blob([text], {'type':type})), filename); }
-
-/** Save a data url to disk 
- *  @param {String}     dataURL
- *  @param {String}     filename
- *  @memberof Debug */
-function debugSaveDataURL(dataURL, filename)
-{
-    downloadLink.download = filename;
-    downloadLink.href = dataURL;
-    downloadLink.click();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Engine debug function (called automatically)
-
-function debugInit()
-{
-    // create link for saving screenshots
-    downloadLink = document.createElement('a');
-}
-
-function debugUpdate()
-{
-    if (!debug)
-        return;
-
-    if (keyWasPressed(debugKey)) // Esc
-        debugOverlay = !debugOverlay;
-    if (debugOverlay)
-    {
-        if (keyWasPressed('Digit0'))
-            showWatermark = !showWatermark;
-        if (keyWasPressed('Digit1'))
-            debugPhysics = !debugPhysics, debugParticles = false;
-        if (keyWasPressed('Digit2'))
-            debugParticles = !debugParticles, debugPhysics = false;
-        if (keyWasPressed('Digit3'))
-            debugGamepads = !debugGamepads;
-        if (keyWasPressed('Digit4'))
-            debugRaycast = !debugRaycast;
-        if (keyWasPressed('Digit5'))
-            debugTakeScreenshot = 1;
-    }
-}
-
-function debugRender()
-{
-    glCopyToContext(mainContext);
-
-    if (debugTakeScreenshot)
-    {
-        // composite canvas
-        glCopyToContext(mainContext, true);
-        mainContext.drawImage(overlayCanvas, 0, 0);
-        overlayCanvas.width |= 0;
-
-        // remove alpha and save
-        const w = mainCanvas.width, h = mainCanvas.height;
-        overlayContext.fillRect(0,0,w,h);
-        overlayContext.drawImage(mainCanvas, 0, 0);
-        debugSaveCanvas(overlayCanvas);
-        debugTakeScreenshot = 0;
-    }
-
-    if (debugGamepads && gamepadsEnable && navigator.getGamepads)
-    {
-        // gamepad debug display
-        const gamepads = navigator.getGamepads();
-        for (let i = gamepads.length; i--;)
-        {
-            const gamepad = gamepads[i];
-            if (gamepad)
-            {
-                const stickScale = 1;
-                const buttonScale = .2;
-                const centerPos = cameraPos;
-                const sticks = gamepadStickData[i];
-                for (let j = sticks.length; j--;)
-                {
-                    const drawPos = centerPos.add(vec2(j*stickScale*2, i*stickScale*3));
-                    const stickPos = drawPos.add(sticks[j].scale(stickScale));
-                    debugCircle(drawPos, stickScale, '#fff7',0,true);
-                    debugLine(drawPos, stickPos, '#f00');
-                    debugPoint(stickPos, '#f00');
-                }
-                for (let j = gamepad.buttons.length; j--;)
-                {
-                    const drawPos = centerPos.add(vec2(j*buttonScale*2, i*stickScale*3-stickScale-buttonScale));
-                    const pressed = gamepad.buttons[j].pressed;
-                    debugCircle(drawPos, buttonScale, pressed ? '#f00' : '#fff7', 0, true);
-                    debugText(''+j, drawPos, .2);
-                }
-            }
-        }
-    }
-
-    let debugObject;
-    if (debugOverlay)
-    {
-        const saveContext = mainContext;
-        mainContext = overlayContext;
-        
-        // draw red rectangle around screen
-        const cameraSize = getCameraSize();
-        debugRect(cameraPos, cameraSize.subtract(vec2(.1)), '#f008');
-
-        // mouse pick
-        let bestDistance = Infinity;
-        for (const o of engineObjects)
-        {
-            if (o.canvas || o.destroyed)
-                continue;
-
-            o.renderDebugInfo();
-            if (!o.size.x || !o.size.y)
-                continue;
-
-            const distance = mousePos.distanceSquared(o.pos);
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                debugObject = o;
-            }
-        }
-
-        if (tileCollisionSize.x > 0 && tileCollisionSize.y > 0)
-            drawRect(mousePos.floor().add(vec2(.5)), vec2(1), rgb(0,0,1,.5), 0, false);
-        mainContext = saveContext;
-
-        //glCopyToContext(mainContext = saveContext);
-    }
-
-    {
-        // draw debug primitives
-        overlayContext.lineWidth = 2;
-        const pointSize = debugPointSize * cameraScale;
-        debugPrimitives.forEach(p=>
-        {
-            overlayContext.save();
-
-            // create canvas transform from world space to screen space
-            const pos = worldToScreen(p.pos);
-            overlayContext.translate(pos.x|0, pos.y|0);
-            overlayContext.rotate(p.angle);
-            overlayContext.scale(1, -1);
-            overlayContext.fillStyle = overlayContext.strokeStyle = p.color;
-
-            if (p.text != undefined)
-            {
-                overlayContext.font = p.size*cameraScale + 'px '+ p.font;
-                overlayContext.textAlign = 'center';
-                overlayContext.textBaseline = 'middle';
-                overlayContext.fillText(p.text, 0, 0);
-            }
-            else if (p.points != undefined)
-            {
-                // poly
-                overlayContext.beginPath();
-                for (const point of p.points)
-                {
-                    const p2 = point.scale(cameraScale).floor();
-                    overlayContext.lineTo(p2.x, p2.y);
-                }
-                overlayContext.closePath();
-                p.fill && overlayContext.fill();
-                overlayContext.stroke();
-            }
-            else if (p.size == 0 || p.size.x === 0 && p.size.y === 0)
-            {
-                // point
-                overlayContext.fillRect(-pointSize/2, -1, pointSize, 3);
-                overlayContext.fillRect(-1, -pointSize/2, 3, pointSize);
-            }
-            else if (p.size.x != undefined)
-            {
-                // rect
-                const s = p.size.scale(cameraScale).floor();
-                const w = s.x, h = s.y;
-                p.fill && overlayContext.fillRect(-w/2|0, -h/2|0, w, h);
-                overlayContext.strokeRect(-w/2|0, -h/2|0, w, h);
-            }
-            else
-            {
-                // circle
-                overlayContext.beginPath();
-                overlayContext.arc(0, 0, p.size*cameraScale, 0, 9);
-                p.fill && overlayContext.fill();
-                overlayContext.stroke();
-            }
-            
-            overlayContext.restore();
-        });
-
-        // remove expired primitives
-        debugPrimitives = debugPrimitives.filter(r=>r.time<0);
-    }
-    
-    if (debugObject)
-    {
-        const saveContext = mainContext;
-        mainContext = overlayContext;
-        const raycastHitPos = tileCollisionRaycast(debugObject.pos, mousePos);
-        raycastHitPos && drawRect(raycastHitPos.floor().add(vec2(.5)), vec2(1), rgb(0,1,1,.3));
-        drawLine(mousePos, debugObject.pos, .1, raycastHitPos ? rgb(1,0,0,.5) : rgb(0,1,0,.5), false);
-
-        const debugText = 'mouse pos = ' + mousePos + 
-            '\nmouse collision = ' + getTileCollisionData(mousePos) + 
-            '\n\n--- object info ---\n' +
-            debugObject.toString();
-        drawTextScreen(debugText, mousePosScreen, 24, rgb(), .05, undefined, 'center', 'monospace');
-        mainContext = saveContext;
-    }
-
-    {
-        // draw debug overlay
-        overlayContext.save();
-        overlayContext.fillStyle = '#fff';
-        overlayContext.textAlign = 'left';
-        overlayContext.textBaseline = 'top';
-        overlayContext.font = '28px monospace';
-        overlayContext.shadowColor = '#000';
-        overlayContext.shadowBlur = 9;
-
-        let x = 9, y = -20, h = 30;
-        if (debugOverlay)
-        {
-            overlayContext.fillText(engineName, x, y += h);
-            overlayContext.fillText('Objects: ' + engineObjects.length, x, y += h);
-            overlayContext.fillText('Time: ' + formatTime(time), x, y += h);
-            overlayContext.fillText('---------', x, y += h);
-            overlayContext.fillStyle = '#f00';
-            overlayContext.fillText('ESC: Debug Overlay', x, y += h);
-            overlayContext.fillStyle = debugPhysics ? '#f00' : '#fff';
-            overlayContext.fillText('1: Debug Physics', x, y += h);
-            overlayContext.fillStyle = debugParticles ? '#f00' : '#fff';
-            overlayContext.fillText('2: Debug Particles', x, y += h);
-            overlayContext.fillStyle = debugGamepads ? '#f00' : '#fff';
-            overlayContext.fillText('3: Debug Gamepads', x, y += h);
-            overlayContext.fillStyle = debugRaycast ? '#f00' : '#fff';
-            overlayContext.fillText('4: Debug Raycasts', x, y += h);
-            overlayContext.fillStyle = '#fff';
-            overlayContext.fillText('5: Save Screenshot', x, y += h);
-
-            let keysPressed = '';
-            for(const i in inputData[0])
-            {
-                if (keyIsDown(i, 0))
-                    keysPressed += i + ' ' ;
-            }
-            keysPressed && overlayContext.fillText('Keys Down: ' + keysPressed, x, y += h);
-
-            let buttonsPressed = '';
-            if (inputData[1])
-            for(const i in inputData[1])
-            {
-                if (keyIsDown(i, 1))
-                    buttonsPressed += i + ' ' ;
-            }
-            buttonsPressed && overlayContext.fillText('Gamepad: ' + buttonsPressed, x, y += h);
-        }
-        else
-        {
-            overlayContext.fillText(debugPhysics ? 'Debug Physics' : '', x, y += h);
-            overlayContext.fillText(debugParticles ? 'Debug Particles' : '', x, y += h);
-            overlayContext.fillText(debugRaycast ? 'Debug Raycasts' : '', x, y += h);
-            overlayContext.fillText(debugGamepads ? 'Debug Gamepads' : '', x, y += h);
-        }
-    
-        overlayContext.restore();
-    }
-}
+// debug commands are automatically removed from the final build
+function ASSERT          (){}
+function debugInit       (){}
+function debugUpdate     (){}
+function debugRender     (){}
+function debugRect       (){}
+function debugPoly       (){}
+function debugCircle     (){}
+function debugPoint      (){}
+function debugLine       (){}
+function debugOverlap    (){}
+function debugText       (){}
+function debugClear      (){}
+function debugSaveCanvas (){}
+function debugSaveText   (){}
+function debugSaveDataURL(){}
 /**
  * LittleJS Utility Classes and Functions
  * - General purpose math library
@@ -1966,9 +1549,9 @@ class EngineObject
 
         // apply physics
         const oldPos = this.pos.copy();
-        this.velocity.y += gravity * this.gravityScale;
         this.pos.x += this.velocity.x *= this.damping;
-        this.pos.y += this.velocity.y *= this.damping;
+        this.pos.y += this.velocity.y = this.damping * this.velocity.y 
+            + gravity * this.gravityScale;
         this.angle += this.angleVelocity *= this.angleDamping;
 
         // physics sanity checks
@@ -2097,19 +1680,22 @@ class EngineObject
                     const isBlockedX = tileCollisionTest(vec2(this.pos.x, oldPos.y), this.size, this);
                     if (isBlockedY || !isBlockedX)
                     {
-                        // set if landed on ground
-                        this.groundObject = wasMovingDown;
-
                         // bounce velocity
                         this.velocity.y *= -this.elasticity;
 
-                        // adjust next velocity to settle on ground
-                        const o = (oldPos.y - this.size.y/2|0) - (oldPos.y - this.size.y/2);
-                        if (o < 0 && o > this.damping * this.velocity.y + gravity * this.gravityScale) 
-                            this.velocity.y = this.damping ? (o - gravity * this.gravityScale) / this.damping : 0;
-
-                        // move to previous position
-                        this.pos.y = oldPos.y;
+                        // set if landed on ground
+                        if (this.groundObject = wasMovingDown)
+                        {
+                            // adjust position to slightly above nearest tile boundary
+                            // this prevents gap between object and ground
+                            const epsilon = .0001;
+                            this.pos.y = (oldPos.y-this.size.y/2|0)+this.size.y/2+epsilon;
+                        }
+                        else
+                        {
+                            // move to previous position
+                            this.pos.y = oldPos.y;
+                        }
                     }
                     if (isBlockedX)
                     {
@@ -2959,6 +2545,10 @@ function inputInit()
     // mouse event handlers
     onmousedown   = (e)=>
     {
+        // fix stalled audio requiring user interaction
+        if (soundEnable && !headlessMode && audioContext && audioContext.state != 'running')
+            audioContext.resume();
+        
         isUsingGamepad = false; 
         inputData[0][e.button] = 3; 
         mousePosScreen = mouseToScreen(e); 
@@ -2970,7 +2560,7 @@ function inputInit()
     oncontextmenu = (e)=> false; // prevent right click menu
 
     // init touch input
-    if (isTouchDevice && touchInputEnable && !headlessMode)
+    if (isTouchDevice && touchInputEnable)
         touchInputInit();
 }
 
@@ -3127,8 +2717,8 @@ function touchInputInit()
     function handleTouchDefault(e)
     {
         // fix stalled audio requiring user interaction
-        if (soundEnable && audioContext && audioContext.state != 'running')
-            zzfx(0);
+        if (soundEnable && !headlessMode && audioContext && audioContext.state != 'running')
+            audioContext.resume();
 
         // check if touching and pass to mouse events
         const touching = e.touches.length;
@@ -3341,6 +2931,7 @@ class Sound
             // generate zzfx sound now for fast playback
             const defaultRandomness = .05;
             this.randomness = zzfxSound[1] || defaultRandomness;
+            zzfxSound[1] = 0; // generate without randomness
             this.sampleChannels = [zzfxG(...zzfxSound)];
             this.sampleRate = zzfxR;
         }
@@ -3573,10 +3164,6 @@ function getNoteFrequency(semitoneOffset, rootFrequency=220)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// internal tracking if audio was suspended when last sound was played
-// allows first suspended sound to play when audio is resumed
-let audioSuspended = false;
-
 /** Play cached audio samples with given settings
  *  @param {Array}    sampleChannels - Array of arrays of samples to play (for stereo playback)
  *  @param {Number}   [volume] - How much to scale volume by
@@ -3592,20 +3179,21 @@ function playSamples(sampleChannels, volume=1, rate=1, pan=0, loop=false, sample
     if (!soundEnable || headlessMode) return;
 
     // prevent sounds from building up if they can't be played
-    const audioWasSuspended = audioSuspended;
-    if (audioSuspended = audioContext.state != 'running')
+    if (audioContext.state != 'running')
     {
         // fix stalled audio
-        audioContext.resume();
+        audioContext.resume().then(()=>
+            playSamples(sampleChannels, volume, rate, pan, loop, sampleRate, gainNode));
 
         // prevent suspended sounds from building up
-        if (audioWasSuspended)
-            return;
+        return;
     }
 
     // create buffer and source
-    const buffer = audioContext.createBuffer(sampleChannels.length, sampleChannels[0].length, sampleRate), 
-        source = audioContext.createBufferSource();
+    const channelCount = sampleChannels.length;
+    const sampleLength = sampleChannels[0].length;
+    const buffer = audioContext.createBuffer(channelCount, sampleLength, sampleRate);
+    const source = audioContext.createBufferSource();
 
     // copy samples to buffer and setup source
     sampleChannels.forEach((c,i)=> buffer.getChannelData(i).set(c));
@@ -3619,7 +3207,8 @@ function playSamples(sampleChannels, volume=1, rate=1, pan=0, loop=false, sample
     gainNode.connect(audioGainNode);
 
     // connect source to stereo panner and gain
-    source.connect(new StereoPannerNode(audioContext, {'pan':clamp(pan, -1, 1)})).connect(gainNode);
+    const pannerNode = new StereoPannerNode(audioContext, {'pan':clamp(pan, -1, 1)});
+    source.connect(pannerNode).connect(gainNode);
 
     // play and return sound
     source.start();
@@ -3635,7 +3224,7 @@ function playSamples(sampleChannels, volume=1, rate=1, pan=0, loop=false, sample
  *  @param {Array} zzfxSound - Array of ZzFX parameters, ex. [.5,.5]
  *  @return {AudioBufferSourceNode} - The audio node of the sound played
  *  @memberof Audio */
-function zzfx(...zzfxSound) { return new Sound(zzfxSound).play(); }
+function zzfx(...zzfxSound) { return playSamples([zzfxG(...zzfxSound)]); }
 
 /** Sample rate used for all ZzFX sounds
  *  @default 44100
@@ -3644,7 +3233,7 @@ const zzfxR = 44100;
 
 /** Generate samples for a ZzFX sound
  *  @param {Number}  [volume] - Volume scale (percent)
- *  @param {Number}  [randomness] - Unused in this fuction, handled by Sound class
+ *  @param {Number}  [randomness] - How much to randomize frequency (percent Hz)
  *  @param {Number}  [frequency] - Frequency of sound (Hz)
  *  @param {Number}  [attack] - Attack time, how fast sound starts (seconds)
  *  @param {Number}  [sustain] - Sustain time, how long sound holds (seconds)
@@ -3670,7 +3259,7 @@ const zzfxR = 44100;
 function zzfxG
 (
     // parameters
-    volume = 1, randomness = 0, frequency = 220, attack = 0, sustain = 0,
+    volume = 1, randomness = .05, frequency = 220, attack = 0, sustain = 0,
     release = .1, shape = 0, shapeCurve = 1, slide = 0, deltaSlide = 0,
     pitchJump = 0, pitchJumpTime = 0, repeatTime = 0, noise = 0, modulation = 0,
     bitCrush = 0, delay = 0, sustainVolume = 1, decay = 0, tremolo = 0, filter = 0
@@ -3681,7 +3270,8 @@ function zzfxG
     // init parameters
     let PI2 = PI*2, sampleRate = zzfxR,
         startSlide = slide *= 500 * PI2 / sampleRate / sampleRate,
-        startFrequency = frequency *= PI2 / sampleRate,
+        startFrequency = frequency *= 
+            rand(1 + randomness, 1-randomness) * PI2 / sampleRate,
         b = [], t = 0, tm = 0, i = 0, j = 1, r = 0, c = 0, s = 0, f, length,
 
         // biquad LP/HP filter
@@ -5081,7 +4671,7 @@ const engineName = 'LittleJS';
  *  @type {String}
  *  @default
  *  @memberof Engine */
-const engineVersion = '1.9.9';
+const engineVersion = '1.9.11';
 
 /** Frames per second to update
  *  @type {Number}
@@ -5642,258 +5232,3 @@ function drawEngineSplashScreen(t)
     
     x.restore();
 }
-
-/** 
- * LittleJS Module Export
- * - Export engine as a module
- */
-
-export {
-
-	// Engine
-	engineName,
-	engineVersion,
-	frameRate,
-	timeDelta,
-	engineObjects,
-	frame,
-	time,
-	timeReal,
-	paused,
-	setPaused,
-	engineInit,
-	engineObjectsUpdate,
-	engineObjectsDestroy,
-	engineObjectsCallback,
-	engineAddPlugin,
-	
-	// Globals
-	debug,
-	debugOverlay,
-	showWatermark,
-
-	// Debug
-	ASSERT,
-	debugRect,
-	debugPoly,
-	debugCircle,
-	debugPoint,
-	debugLine,
-	debugOverlap,
-	debugText,
-	debugClear,
-	debugSaveCanvas,
-	debugSaveText,
-	debugSaveDataURL,
-
-	// Settings
-	cameraPos,
-	cameraScale,
-	canvasMaxSize,
-	canvasFixedSize,
-	canvasPixelated,
-	fontDefault,
-	showSplashScreen,
-	headlessMode,
-	tileSizeDefault,
-	tileFixBleedScale,
-	enablePhysicsSolver,
-	objectDefaultMass,
-	objectDefaultDamping,
-	objectDefaultAngleDamping,
-	objectDefaultElasticity,
-	objectDefaultFriction,
-	objectMaxSpeed,
-	gravity,
-	particleEmitRateScale,
-	glEnable,
-	glOverlay,
-	gamepadsEnable,
-	gamepadDirectionEmulateStick,
-	inputWASDEmulateDirection,
-	touchGamepadEnable,
-	touchGamepadAnalog,
-	touchGamepadSize,
-	touchGamepadAlpha,
-	vibrateEnable,
-	soundEnable,
-	soundVolume,
-	soundDefaultRange,
-	soundDefaultTaper,
-	medalDisplayTime,
-	medalDisplaySlideTime,
-	medalDisplaySize,
-	medalDisplayIconSize,
-
-	// Setters for globals
-	setCameraPos,
-	setCameraScale,
-	setCanvasMaxSize,
-	setCanvasFixedSize,
-	setCanvasPixelated,
-	setFontDefault,
-	setShowSplashScreen,
-	setHeadlessMode,
-	setGlEnable,
-	setGlOverlay,
-	setTileSizeDefault,
-	setTileFixBleedScale,
-	setEnablePhysicsSolver,
-	setObjectDefaultMass,
-	setObjectDefaultDamping,
-	setObjectDefaultAngleDamping,
-	setObjectDefaultElasticity,
-	setObjectDefaultFriction,
-	setObjectMaxSpeed,
-	setGravity,
-	setParticleEmitRateScale,
-	setTouchInputEnable,
-	setGamepadsEnable,
-	setGamepadDirectionEmulateStick,
-	setInputWASDEmulateDirection,
-	setTouchGamepadEnable,
-	setTouchGamepadAnalog,
-	setTouchGamepadSize,
-	setTouchGamepadAlpha,
-	setVibrateEnable,
-	setSoundEnable,
-	setSoundVolume,
-	setSoundDefaultRange,
-	setSoundDefaultTaper,
-	setMedalDisplayTime,
-	setMedalDisplaySlideTime,
-	setMedalDisplaySize,
-	setMedalDisplayIconSize,
-	setMedalsPreventUnlock,
-	setShowWatermark,
-	setDebugKey,
-
-	// Utilities
-	PI,
-	abs,
-	min,
-	max,
-	sign,
-	mod,
-	clamp,
-	percent,
-	distanceWrap,
-	lerpWrap,
-	distanceAngle,
-	lerpAngle,
-	lerp,
-	smoothStep,
-	nearestPowerOfTwo,
-	isOverlapping,
-	wave,
-	formatTime,
-
-	// Random
-	rand,
-	randInt,
-	randSign,
-	randInCircle,
-	randVector,
-	randColor,
-
-	// Utility Classes
-	RandomGenerator,
-	Vector2,
-	Color,
-	Timer,
-	vec2,
-	rgb,
-	hsl,
-
-	// Draw
-	textureInfos,
-	tile,
-	TileInfo,
-	TextureInfo,
-	mainCanvas,
-	mainContext,
-	overlayCanvas,
-	overlayContext,
-	mainCanvasSize,
-	screenToWorld,
-	worldToScreen,
-	drawTile,
-	drawRect,
-	drawLine,
-	drawCanvas2D,
-	setBlendMode,
-	drawTextScreen,
-	drawText,
-	engineFontImage,
-	FontImage,
-	isFullscreen,
-	toggleFullscreen,
-	getCameraSize,
-
-	// WebGL
-	glCanvas,
-	glContext,
-	glSetTexture,
-	glCompileShader,
-	glCreateProgram,
-	glCreateTexture,
-
-	// Input
-	keyIsDown,
-	keyWasPressed,
-	keyWasReleased,
-	clearInput,
-	mouseIsDown,
-	mouseWasPressed,
-	mouseWasReleased,
-	mousePos,
-	mousePosScreen,
-	mouseWheel,
-	isUsingGamepad,
-	preventDefaultInput,
-	gamepadIsDown,
-	gamepadWasPressed,
-	gamepadWasReleased,
-	gamepadStick,
-	mouseToScreen,
-	gamepadsUpdate,
-	vibrate,
-	vibrateStop,
-	isTouchDevice,
-
-	// Audio
-	Sound,
-	SoundWave,
-	Music,
-	playAudioFile,
-	speak,
-	speakStop,
-	getNoteFrequency,
-	audioContext,
-	playSamples,
-	zzfx,
-
-	// Base Object
-	EngineObject,
-
-	// Tiles
-	tileCollision,
-	tileCollisionSize,
-	initTileCollision,
-	setTileCollisionData,
-	getTileCollisionData,
-	tileCollisionTest,
-	tileCollisionRaycast,
-	TileLayerData,
-	TileLayer,
-
-	// Particles
-	ParticleEmitter,
-	Particle,
-
-	// Medals
-	medals,
-	medalsPreventUnlock,
-	medalsInit,
-	Medal,
-};
