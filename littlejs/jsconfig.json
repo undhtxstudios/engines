@@ -1,0 +1,11 @@
+{
+    "compilerOptions": {
+      // "checkJs": true,
+      "baseUrl": "./",
+      "paths": {
+        "*": ["./engine/dist/*", "./engine/plugins/*", "./engine/src/*"]
+      }
+    },
+    "include": ["./concepts", "./tutorials", "./engine"]
+}
+  
