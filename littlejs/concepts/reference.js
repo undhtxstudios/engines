@@ -1,9 +1,5 @@
 /* 
 
 GitHub: https://github.com/KilledByAPixel/LittleJS/blob/main/reference.md
-
-Canvas
-
-mainCanvasSize          :       size of the main canvas
-
+YouTube: https://www.youtube.com/watch?v=_dXKU0WgAj8
 */
